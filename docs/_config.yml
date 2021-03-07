@@ -30,9 +30,20 @@ twitter_username: jekyllrb
 github_username:  ynonp
 
 # Build settings
-theme: jekyll-theme-cayman
+theme: texture
 plugins:
   - jekyll-feed
+show_excerpts: true
+
+texture:
+  title: Ynon Perek
+  tagline: Developer.
+  date_format: "%b %-d, %Y"
+  style: black
+
+  social_links:
+    github:  ynonp
+    linkedIn: en/ynonperek
 
 # Exclude from processing.
 # The following items will not be processed, by default.
