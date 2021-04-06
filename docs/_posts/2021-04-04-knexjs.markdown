@@ -1,0 +1,390 @@
+---
+title:  "Solving 14 SQL Exercises with Knex.JS"
+date:   2021-04-04 00:07:00 +0200
+categories: node.js sql
+---
+Knex.JS, according to their [documentation](http://knexjs.org/), is a betteries included SQL Builder. I had the pleasure to work with this library in a recent project and really liked it: The code felt easier to write in comparison to traditional ORMs, provided you know your SQL. In order to better explain to myself and to the world what that means I decided to solve 14 non trivial SQL exercises with it. I hope by the time you'll finish reading this post you too will have a solid understanding of the main concepts behind this library and its real world usage.
+
+## Our Exercise DB
+The database and exercises themsleves I found online in a free [SQL Course](https://sql.sh/exercices-sql). I haven't read the learning lessons but did like the exercises and you can download the database and exercises in the link. The DB itself has 3 tables according to the following structure:
+
+```
+mysql> show tables;
++----------------------+
+| Tables_in_myapp_test |
++----------------------+
+| client               |
+| commande             |
+| commande_ligne       |
++----------------------+
+3 rows in set (0.01 sec)
+```
+
+```
+mysql> describe client;
++----------+--------------+------+-----+---------+----------------+
+| Field    | Type         | Null | Key | Default | Extra          |
++----------+--------------+------+-----+---------+----------------+
+| id       | int unsigned | NO   | PRI | NULL    | auto_increment |
+| prenom   | varchar(255) | NO   |     | NULL    |                |
+| nom      | varchar(255) | NO   |     | NULL    |                |
+| email    | varchar(255) | NO   |     | NULL    |                |
+| ville    | varchar(255) | NO   |     | NULL    |                |
+| password | varchar(255) | NO   |     | NULL    |                |
+  +----------+--------------+------+-----+---------+----------------+
+  6 rows in set (0.00 sec)
+  ```
+
+  ```
+  mysql> describe commande;
+  +------------------+--------------+------+-----+---------+----------------+
+  | Field            | Type         | Null | Key | Default | Extra          |
+  +------------------+--------------+------+-----+---------+----------------+
+  | id               | int unsigned | NO   | PRI | NULL    | auto_increment |
+  | client_id        | int unsigned | NO   |     | NULL    |                |
+  | date_achat       | date         | NO   |     | NULL    |                |
+  | reference        | varchar(255) | NO   |     | NULL    |                |
+  | cache_prix_total | float        | NO   |     | NULL    |                |
+  +------------------+--------------+------+-----+---------+----------------+
+  5 rows in set (0.00 sec)
+  ```
+
+  ```
+  mysql> describe commande_ligne;
+  +---------------+----------------+------+-----+---------+----------------+
+  | Field         | Type           | Null | Key | Default | Extra          |
+  +---------------+----------------+------+-----+---------+----------------+
+  | id            | int unsigned   | NO   | PRI | NULL    | auto_increment |
+  | commande_id   | int unsigned   | NO   |     | NULL    |                |
+  | nom           | varchar(255)   | NO   |     | NULL    |                |
+  | quantite      | int unsigned   | NO   |     | NULL    |                |
+  | prix_unitaire | float unsigned | NO   |     | NULL    |                |
+  | prix_total    | float unsigned | NO   |     | NULL    |                |
+  +---------------+----------------+------+-----+---------+----------------+
+  6 rows in set (0.01 sec)
+  ```
+
+  Don't be alarmed by the MySQL or the French. Knex.JS will help us write working SQL code and I'll help in the translation. For starters keep in mind that commande in French means order in English so every time I'll table about the orders table that is actually `commande`, every time I'll talk about order line that's `commande_ligne` and `client` is translated as customer.
+
+Using node.js and knex we connect to the database as follows:
+
+```language-javascript
+const knex = require('knex')({
+  client: 'mysql2',
+  connection: {
+    host : '127.0.0.1',
+    user : 'root',
+    password : 'my-secret-pw',
+    database : 'myapp_test'
+  }
+});
+```
+
+I used docker to run a local mysql database with the user and password specified in code. Of course in the real world we would use an environment variable or docker secrets. The knex object returned from the call will be used throughout the code, so in larger programs you'll want to export it.
+
+Knex uses promises so we can use async/await syntax to simplify our code. This first program will connect to the database and print all data from `client` table:
+
+```language-javascript
+const knex = require('knex')({
+  client: 'mysql2',
+  connection: {
+    host : '127.0.0.1',
+    user : 'root',
+    password : 'my-secret-pw',
+    database : 'myapp_test'
+  }
+});
+
+
+async function main() {
+  // prints all the users details
+  const users = await knex('client').select('*');
+  console.log(users);
+
+  knex.destroy();
+}
+
+main();
+```
+
+Calling `destroy` at the end closes all connections to the database and allows the program to finish. For the rest of the post I'll present only the actual knex invocations I used without the above wrapper. If you want to test any of the examples please paste it inside `main` and before the call to `destroy`.
+
+## Task 1: Muriel
+The Task: Find in the table "clients" a user named Muriel and verify her password is "test11". The passwords are stored as SHA1 hashes in `password` column.
+
+Ok so in the real world we would probably use a [password hashing algorithm](https://auth0.com/blog/hashing-passwords-one-way-road-to-security/), but for a first SQL exercise I'm ok with the selected SHA1. Here's what the first knex code looks like:
+
+```language-javascript
+const muriel = await knex('client').where({
+  'prenom': 'Muriel',
+  'password': knex.raw('sha1("test11")'),
+}).first();
+console.log(muriel);
+```
+
+You can literally imagine the translation from knex to SQL, and that's certainly the beauty of knex. Note the call to `knex.raw` in order to call an SQL function. Quoting SQL with `knex.raw` is a pattern we'll see a lot throughout this post. Ending the command with `first()` causes knex to return a single object instead of an array and please don't miss the `await` before `knex` or you'll get a Promise. The result is:
+
+```
+TextRow {
+  id: 11,
+  prenom: 'Muriel',
+  nom: 'Dupuis',
+  email: 'muriel@example.com',
+  ville: 'Paris',
+  password: '100c4e57374fc998e57164d4c0453bd3a4876a58'
+}
+```
+
+## Task 2: Searching Products in Orders
+The Task: Find all the products that appear in more than one order.
+
+This is the SQL query I would write:
+
+```
+select nom, count(commande_id) as commande_count
+from commande_ligne
+group by nom
+having commande_count > 1;
+```
+
+And just note how it translates beatifully to knex:
+
+```language-javascript
+const products = await knex('commande_ligne').
+  select('nom').
+  count('commande_id as commande_count').
+  groupBy('nom').
+  having('commande_count', '>', '1');
+
+console.log(products);
+```
+
+Of course the table name is now passed as the only parameter to `knex` function (instead of the SQL `FROM` keyword), but other than that the functions `select`, `count`, `groupBy` and `having` are almost the same as their SQL counterparts.
+
+## Task 3: Add A Column
+The Task: Find all the products that appear in more than one order, but this time add to the result a column with all the order IDs for each product.
+
+In the previous task we found the products that appeared in more than one order - so now we are requested to find ALL the order IDs for each of those products. MySQL's `group_concat` immediately jumps to mind and I can use it directly from knex without a problem:
+
+```language-javascript
+const products3 = await knex.
+  select('nom').
+  count('commande_id as commande_count').
+  select(knex.raw('group_concat(commande_id) as commandes')).
+  groupBy('nom').
+  from('commande_ligne').
+  having('commande_count', '>', '1');
+
+console.log(products3);
+```
+
+One thing does bother me here however - which is the fact that using database specific functions like `group_concat` means the code can no longer be used for other databases. If portability was important I would have to replace `group_concat` with some JavaScript code to process the results.
+
+Also worth noting that we can use knex's `from` function instead of passing the table name as the only parameter to `knex` function. I found it easier to read that way.
+
+## Task 4: Update A Column
+The Task: Save the total price of every order line in a column `prix_total` in table `commande_ligne`. The total price is the multiplication `prix_unitaire` * `quantite`.
+
+Turns out knex has a very simple update syntax that looks like this:
+
+```language-javascript
+await knex('commande_ligne')
+  .update({
+    prix_total: knex.raw('prix_unitaire * quantite'),
+  });
+```
+
+Note again the use of `knex.raw` in order to let the database do the hard work.
+
+## Task 5: Three Table Join
+The Task: Now that you have the total price in `commande_ligne` table, please display the total price of every order. While you're at it, please add the customer name and purchase date.
+
+A three table join? Not a problem!
+
+```language-javascript
+  const sol5 = await knex.
+    select('commande.id').
+    sum('commande_ligne.prix_total as prix_total').
+    select('commande.date_achat', 'client.prenom', 'client.nom').
+    from('commande').
+    join('commande_ligne', 'commande.id', '=', 'commande_ligne.commande_id').
+    join('client', 'client.id', '=', 'commande.client_id').
+    groupBy('commande.id');
+
+  console.log(sol5);
+```
+
+Empty orders will not appear because I used INNER JOIN (that's the default). Knex also has leftJoin and rightJoin if you need them.
+
+## Task 6: Update and Join
+The Task: Add to the orders table the total price of each order as the value of `cache_prix_total` column in `commande` table.
+
+This was (for me) the hardest task from the list as I usually work on PostgreSQL and I found out the hard way that MySQL will not let you use the table you're updating in a sub-query while updating. Working around that limitation led me to the following knex call:
+
+```language-javascript
+  await knex('commande').
+    join(
+      knex('commande_ligne').
+        sum('commande_ligne.prix_total as price').
+        select('commande_id').
+        groupBy('commande_id').
+        as('commande_lignes')
+    , 'commande_lignes.commande_id', 'commande.id').
+    update({
+      'cache_prix_total': knex.raw('CAST(commande_lignes.price AS FLOAT)'),
+    });
+```
+
+The corresponding SQL query is:
+
+```
+UPDATE `commande` INNER join 
+    (SELECT
+        sum(`commande_ligne`.`prix_total`) as `price`,
+        `commande_id`
+     FROM `commande_ligne`
+     GROUP BY `commande_id`)
+     AS `commande_lignes`
+     ON `commande_lignes`.`commande_id` = `commande`.`id`
+     SET `cache_prix_total` = CAST(commande_lignes.price AS FLOAT)
+```
+
+In knex, passing the result of knex() as the first parameter to join creates the sub-query.
+
+## Task 7: Monthly Revenue
+The Task: Show the total price of the orders in every month
+
+Took me some googling to find MySQL's `DATE_FORMAT` and after finding it we get:
+
+```language-javascript
+const sol7 = await knex('commande').
+  select(knex.raw("DATE_FORMAT(date_achat, '%Y_%m') as date")).
+  sum('cache_prix_total as total_orders').
+  groupBy('date');
+
+console.log(sol7);
+```
+
+And see how `sum()` does exactly what we need - feels like we're still writing SQL.
+
+## Task 8: Ordering
+The Task: Find the 10 customers that generated the largest orders, and show their customer ids and the sum total of their orders.
+
+Since we already added the column `cache_prix_total` to the orders table, all that's left is to sum this value for each customer and show the 10 highest results:
+
+```language-javascript
+  const sol8 = await knex('commande').
+    select('client_id').
+    sum('cache_prix_total as client_sum').
+    groupBy('client_id').
+    orderBy('client_sum', 'desc').
+    limit(10);
+
+  console.log(sol8);
+```
+
+## Task 9: Daily Orders
+The Task: Show the total sum of orders arrived each day.
+
+Well assuming I got the French right, this question was almost too similar to task 7. Anyway here's my knex code:
+
+```language-javascript
+  const sol9 = await knex('commande').
+    select(knex.raw("DATE_FORMAT(date_achat, '%Y_%m_%d') as date")).
+    sum('cache_prix_total as total_orders').
+    groupBy('date_achat');
+
+  console.log(sol9);
+```
+
+## Task 10: New Column
+The Task: Add a new column called `category` to the orders table.
+
+Turns out knex can not only build queries but can also modify the structure of your tables using a [schema](http://knexjs.org/#Schema) object. In order to add a column we'll access the `schema` object and call the somewhat confusingly named function `table`:
+
+```language-javascript
+await knex.schema.table('commande', function(table) {
+  table.integer('category');
+});
+```
+
+## Task 11: Update Category
+The Task: Modify the orders table so that the column `category` will contain the value 1 if order price is < 200; the value 2 if order price is between 200 and 500; the value 3 if order price is between 500 and 1,000 and the value 4 if the order price is above 1,000.
+
+Remember knex.raw? Turns out using it and a multiline string we can solve this task almost entirely in SQL:
+
+```language-javascript
+  await knex('commande').update({
+    'category': knex.raw(`
+      CASE
+        WHEN cache_prix_total BETWEEN 0 AND 200 THEN 1
+        WHEN cache_prix_total BETWEEN 200 AND 500 THEN 2
+        WHEN cache_prix_total BETWEEN 500 AND 1000 THEN 4
+        WHEN cache_prix_total > 1000 THEN 4
+      END
+    `),
+  });
+```
+
+## Task 12: New Table
+The Task: Create a new table named `commande_category` with two columns: A numerical column with the value of the category and a text column describing the category.
+
+Unline adding a column, knex has a very intuitive name for its createTable function:
+
+```language-javascript
+await knex.schema.createTable('commande_category', function(table) {
+  table.integer('category');
+  table.string('description');
+});
+```
+
+Note the use of `table.integer` and `table.string` to define column types.
+
+## Task 13: Bulk Insert
+The Task: Fill the new table you created with the 4 categories we have in our system.
+
+Well in the real world 4 values is not something to call bulk, but for an exercise that would be an excellent opportunity to get to know knex's bulk insert syntax:
+
+```language-javascript
+  await knex.batchInsert('commande_category', [
+    { category: 1, description: '< 200' },
+    { category: 2, description: 'Between 200 and 500' },
+    { category: 3, description: 'Between 500 and 1000' },
+    { category: 4, description: '> 1000' },
+  ]);
+```
+
+And it does exactly what you would imagine:
+
+1. Each JSON object in the array represents a value
+2. The function will split the array to chunks (default is 1,000 rows per chunk) and insert the chunks one by one.
+
+## Task 14: Delete
+The Task: Delete all orders older than 1/2/2019, and for every order delete also its matching lines from `commande_ligne` table.
+
+In knex the function `del` is how we delete rows. First we'll use a sub query to find and delete the old order lines from `commande_ligne`:
+
+```language-javascript
+  await knex('commande_ligne')
+    .whereIn('commande_id', function() {
+      this.
+      select('id').
+      from('commande').
+      where('date_achat', '<', knex.raw("DATE('2019-02-1')"));
+    }).del();
+```
+
+One gotcha about this API is keeping in mind the function you provide to `whereIn` does not return a value but should call `this` to create the query.
+
+Now we can continue to delete the rows from the original `commande` table:
+
+```language-javascript
+await knex('commande').
+  where('date_achat', '<', knex.raw("DATE('2019-02-1')")).
+  del();
+```
+
+## Fin
+Working with knex is really cool if you know your SQL. The translation from SQL to knex is quick, and we don't need to create classes and other layers of abstractions. Using knex means you'll get relatively portable code, but as we saw in this post it is really easy to break portability by using database specific functions.
+
+While the focus on SQL means code is mostly easy to write and maintain, it does mean that you don't get all the good stuff a big ORM might have provided such as associations and validations. However for many small and average sized projects I suspect knex's approach would yield all in all simpler code.
