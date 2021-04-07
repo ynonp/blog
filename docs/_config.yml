@@ -26,23 +26,20 @@ baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: jekyllrb
 github_username:  ynonp
-remote_theme: thelehhman/texture
+remote_theme: samarsault/plainwhite-jekyll
 
 # Build settings
-theme: texture
+theme: plainwhite
 plugins:
   - jekyll-feed
 show_excerpts: true
 
-texture:
-  title: Ynon Perek's Blog
+plainwhite:
+  name: Ynon Perek's Blog
   tagline: "Thoghts on Writing Better Code"
   date_format: "%b %-d, %Y"
-  style: black
-  showNav: true
-  navigation:
-    - title: Home
-      url: "/"
+  dark_mode: true
+  portfolio_image:  "assets/portfolio.jpg"
 
   social_links:
     github:  ynonp
