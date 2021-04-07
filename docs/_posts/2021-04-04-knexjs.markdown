@@ -6,7 +6,7 @@ categories: node.js sql
 Knex.JS, according to their [documentation](http://knexjs.org/), is a betteries included SQL Builder. I had the pleasure to work with this library in a recent project and really liked it: The code felt easier to write in comparison to traditional ORMs, provided you know your SQL. In order to better explain to myself and to the world what that means I decided to solve 14 non trivial SQL exercises with it. I hope by the time you'll finish reading this post you too will have a solid understanding of the main concepts behind this library and its real world usage.
 
 ## Our Exercise DB
-The database and exercises themsleves I found online in a free [SQL Course](https://sql.sh/exercices-sql). I haven't read the learning lessons but did like the exercises and you can download the database and exercises in the link. The DB itself has 3 tables according to the following structure:
+The database and exercises themsleves I found online in a free [SQL Course](https://sql.sh/exercices-sql). I haven't read the learning lessons but did like the exercises and you can download the database and exercises from the link. The DB itself has 3 tables according to the following structure:
 
 ```
 mysql> show tables;
