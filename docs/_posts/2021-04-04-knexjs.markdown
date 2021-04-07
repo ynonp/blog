@@ -68,7 +68,7 @@ mysql> describe client;
 
 Using node.js and knex we connect to the database as follows:
 
-```language-javascript
+```
 const knex = require('knex')({
   client: 'mysql2',
   connection: {
@@ -84,7 +84,7 @@ I used docker to run a local mysql database with the user and password specified
 
 Knex uses promises so we can use async/await syntax to simplify our code. This first program will connect to the database and print all data from `client` table:
 
-```language-javascript
+```
 const knex = require('knex')({
   client: 'mysql2',
   connection: {
@@ -114,7 +114,7 @@ The Task: Find in the table "clients" a user named Muriel and verify her passwor
 
 Ok so in the real world we would probably use a [password hashing algorithm](https://auth0.com/blog/hashing-passwords-one-way-road-to-security/), but for a first SQL exercise I'm ok with the selected SHA1. Here's what the first knex code looks like:
 
-```language-javascript
+```
 const muriel = await knex('client').where({
   'prenom': 'Muriel',
   'password': knex.raw('sha1("test11")'),
@@ -149,7 +149,7 @@ having commande_count > 1;
 
 And just note how it translates beatifully to knex:
 
-```language-javascript
+```
 const products = await knex('commande_ligne').
   select('nom').
   count('commande_id as commande_count').
@@ -166,7 +166,7 @@ The Task: Find all the products that appear in more than one order, but this tim
 
 In the previous task we found the products that appeared in more than one order - so now we are requested to find ALL the order IDs for each of those products. MySQL's `group_concat` immediately jumps to mind and I can use it directly from knex without a problem:
 
-```language-javascript
+```
 const products3 = await knex.
   select('nom').
   count('commande_id as commande_count').
@@ -187,7 +187,7 @@ The Task: Save the total price of every order line in a column `prix_total` in t
 
 Turns out knex has a very simple update syntax that looks like this:
 
-```language-javascript
+```
 await knex('commande_ligne')
   .update({
     prix_total: knex.raw('prix_unitaire * quantite'),
@@ -201,7 +201,7 @@ The Task: Now that you have the total price in `commande_ligne` table, please di
 
 A three table join? Not a problem!
 
-```language-javascript
+```
   const sol5 = await knex.
     select('commande.id').
     sum('commande_ligne.prix_total as prix_total').
@@ -221,7 +221,7 @@ The Task: Add to the orders table the total price of each order as the value of 
 
 This was (for me) the hardest task from the list as I usually work on PostgreSQL and I found out the hard way that MySQL will not let you use the table you're updating in a sub-query while updating. Working around that limitation led me to the following knex call:
 
-```language-javascript
+```
   await knex('commande').
     join(
       knex('commande_ligne').
@@ -256,7 +256,7 @@ The Task: Show the total price of the orders in every month
 
 Took me some googling to find MySQL's `DATE_FORMAT` and after finding it we get:
 
-```language-javascript
+```
 const sol7 = await knex('commande').
   select(knex.raw("DATE_FORMAT(date_achat, '%Y_%m') as date")).
   sum('cache_prix_total as total_orders').
@@ -272,7 +272,7 @@ The Task: Find the 10 customers that generated the largest orders, and show thei
 
 Since we already added the column `cache_prix_total` to the orders table, all that's left is to sum this value for each customer and show the 10 highest results:
 
-```language-javascript
+```
   const sol8 = await knex('commande').
     select('client_id').
     sum('cache_prix_total as client_sum').
@@ -288,7 +288,7 @@ The Task: Show the total sum of orders arrived each day.
 
 Well assuming I got the French right, this question was almost too similar to task 7. Anyway here's my knex code:
 
-```language-javascript
+```
   const sol9 = await knex('commande').
     select(knex.raw("DATE_FORMAT(date_achat, '%Y_%m_%d') as date")).
     sum('cache_prix_total as total_orders').
@@ -302,7 +302,7 @@ The Task: Add a new column called `category` to the orders table.
 
 Turns out knex can not only build queries but can also modify the structure of your tables using a [schema](http://knexjs.org/#Schema) object. In order to add a column we'll access the `schema` object and call the somewhat confusingly named function `table`:
 
-```language-javascript
+```
 await knex.schema.table('commande', function(table) {
   table.integer('category');
 });
@@ -313,7 +313,7 @@ The Task: Modify the orders table so that the column `category` will contain the
 
 Remember knex.raw? Turns out using it and a multiline string we can solve this task almost entirely in SQL:
 
-```language-javascript
+```
   await knex('commande').update({
     'category': knex.raw(`
       CASE
@@ -331,7 +331,7 @@ The Task: Create a new table named `commande_category` with two columns: A numer
 
 Unline adding a column, knex has a very intuitive name for its createTable function:
 
-```language-javascript
+```
 await knex.schema.createTable('commande_category', function(table) {
   table.integer('category');
   table.string('description');
@@ -345,7 +345,7 @@ The Task: Fill the new table you created with the 4 categories we have in our sy
 
 Well in the real world 4 values is not something to call bulk, but for an exercise that would be an excellent opportunity to get to know knex's bulk insert syntax:
 
-```language-javascript
+```
   await knex.batchInsert('commande_category', [
     { category: 1, description: '< 200' },
     { category: 2, description: 'Between 200 and 500' },
@@ -364,7 +364,7 @@ The Task: Delete all orders older than 1/2/2019, and for every order delete also
 
 In knex the function `del` is how we delete rows. First we'll use a sub query to find and delete the old order lines from `commande_ligne`:
 
-```language-javascript
+```
   await knex('commande_ligne')
     .whereIn('commande_id', function() {
       this.
@@ -378,7 +378,7 @@ One gotcha about this API is keeping in mind the function you provide to `whereI
 
 Now we can continue to delete the rows from the original `commande` table:
 
-```language-javascript
+```
 await knex('commande').
   where('date_achat', '<', knex.raw("DATE('2019-02-1')")).
   del();
