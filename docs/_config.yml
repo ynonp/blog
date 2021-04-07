@@ -39,6 +39,10 @@ texture:
   tagline: "Thoghts on Writing Better Code"
   date_format: "%b %-d, %Y"
   style: black
+  showNav: true
+  navigation:
+    - title: Home
+      url: "/"
 
   social_links:
     github:  ynonp
