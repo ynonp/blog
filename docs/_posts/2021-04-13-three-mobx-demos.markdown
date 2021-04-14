@@ -1,5 +1,5 @@
 ---
-title:  "Two MobX Demos That Helped Me Understand Its Use Cases"
+title:  "Two MobX Use Cases That Actually Worked Well"
 date:   2021-04-13 07:00:00 +0200
 categories: react
 ---
@@ -9,7 +9,7 @@ This week I decided to play with the well known and mostly loved MobX library. I
 After reading I was able to come up with two main scenarios in which I liked the use of MobX. I hope you'll find this guided tour useful.
 
 ## What People Don't Like About React
-Let's begin with the painful truth - React can still be rough around the edges. While writing a basic component should work well with the first tutorial, you'll probably (or have probably already) hit a brick trying to do the following:
+Let's begin with the painful truth - React can still be rough around the edges. Although writing a basic component should work well with the first tutorial, you'll probably (or have probably already) hit a brick trying to do the following:
 
 1. Synchronise global application-wide data.
 
@@ -17,14 +17,14 @@ Let's begin with the painful truth - React can still be rough around the edges. 
 
 3. use useEffect anywhere in your components.
 
-And don't get me wrong, React has some great solutions to each of these problems: We can use context to manage global state, we can use functional programming paradigms to store mutable data in state without actually mutating them, and we can write custom hooks to wrap the complexity of useEffect. However all of these solutions bind our business logic to React where no such binding is required.
+And don't get me wrong, React has some great solutions to each of these problems: We can use context to manage global state, we can use functional programming paradigms to store mutable data structures in state without actually mutating them, and we can write custom hooks to wrap the complexity of useEffect. However all of these solutions bind our business logic to React where no such binding is required.
 
-Most importantly, React does not offer any standard way for business logic to communicate with our components. And since all the tutorials and demos will just put the business logic inside your components, many React developers will do the same and I would often see projects with components that are way too long for their own good.
+Most importantly, React does not offer a standard way for business logic to communicate with our components.
 
-MobX will provide a good solution to the first 2 problems, i.e. storing business logic and global state in a Singleton object, and keeping deeply nested local state.
+MobX provides a good solution to the first two problems, i.e. it helped me store application-wide global state and share it between components, and to save deeply nested data structures as state variables.
 
 ## Managing Global State with a MobX Singleton
-Our first challenge was to manage global application state. A global state, as opposed to local state, is stored in a singleton object, initialized when the application starts and is accessible from anywhere in the code. Any React component that uses the global state is updated as soon as the state changes.
+Our first challenge was to manage global application state. A global state, as opposed to local state, is stored in a singleton object, initialized when the application starts and is accessible from anywhere in the code. Any React component that uses the global state is updated as soon as the state changes. The state itself can change in response to events, such as information coming in from a web socket, or user interaction with the components.
 
 Using mobx terminology we're creating a global singleton store which is being observed by the React components using it.
 
@@ -45,9 +45,9 @@ The first interesting file is `logic/counters_store.jsx`. This file defines two 
 const counterStore = new CountersStore();
 ```
 
-By exporting the result of new, that is a real object, we created a singleton. Now every other file in the project that will import the default object from `counters_store` will get the same object.
+By exporting the result of new we created a singleton. Now every other file in the project that will import the default object from `counters_store` will get the same object.
 
-So a React component in any file in the project can write:
+A React component in any file in the project can now call:
 
 ```
 import countersStore from "../logic/counters_store";
@@ -55,7 +55,7 @@ import countersStore from "../logic/counters_store";
 
 And it will have a reference to the same array of counters.
 
-But for this we only needed JavaScript. The magic of MobX is called observable, and the idea is that this global state can "update", and when it updates it will automatically trigger a `setState` on each React component that used it.
+Of course for this we only needed JavaScript. The magic of MobX is called observable, and the idea is that this global state can "update", and when it updates it will automatically trigger a `setState` on each React component that used it.
 
 The tricky part in MobX (compared with Redux for example), is that MobX will actually create its own getter methods on each global field that is observable, in order to know which fields should trigger a re-render. Examine this simple React component from the demo project:
 
@@ -94,7 +94,7 @@ By defining counters as observable I tell MobX to notify listeners every time th
 The second mechanism is the Higher Order Component `observer` function in `mobx-react-lite` package. This Higher Order Component is responsible for re-rendering our component when observable data in MobX changes. When I wrote these demos and in real-life outside this blog, I would usually forget to call `observer` and my UI would not refresh.
 
 ## Managing Nested React State with a MobX Local Observable
-A second interesting use case for mobx functions as a replacement to functional programming paradigms when I need to store an object or array in state. In normal React code this snippet has a bug:
+A second cool use case for mobx is a replacement to functional programming paradigms when I need to store an object or array in state. In normal React code this snippet would not work as expected:
 
 ```
 function Counters(props) {
@@ -124,7 +124,7 @@ A simple fix is to create a new `counters` array each time an item changes by re
 setCounters([...counters]);
 ```
 
-Which works but feels weird and might not be the most efficient.
+Which works but feels weird and might not be the most efficient. Another easy fix is to create yet another state variable just for re-rendering purposes.
 
 With MobX we can create `counters` array as a MobX observable store, and get the same benefits as if it was a singleton global store. Here's the result in codesandbox:
 
@@ -157,7 +157,20 @@ const Counters = observer(function Counters(props) {
 });
 ```
 
-A local observable replaces immutable data libraries such as Immutable.JS or immer.
+A local observable replaces immutable data libraries such as Immutable.JS or immer, and in my opinion results in cleaner code.
 
 ## fin
+MobX is actually a very big library with many features, however when I used most of them it just made my code worse.
+
+Notably MobX has a Reactions mechanism (the functions `autorun`, `reaction` and `when`) which seemed like a good idea but was actually worse than useEffect wrapped in custom hooks in any situation I found.
+
+I also found M×obX's support of subclassing rather useless. Complex inheritance hierarchies and global state do not play nicely together.
+
+After playing with MobX I can recommend these 3 business logic strategies:
+
+1. Use small utility functions for state-less business logic.
+
+2. Use custom hooks for stateful business logic that lives within the context of a component
+
+3. Use MobX for global application-wide stateful business logic, or to store deeply nested data structures in state.
 
