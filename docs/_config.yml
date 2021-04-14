@@ -27,6 +27,7 @@ url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: jekyllrb
 github_username:  ynonp
 remote_theme: samarsault/plainwhite-jekyll
+encoding: utf-8
 
 # Build settings
 theme: plainwhite

@@ -164,7 +164,7 @@ MobX is actually a very big library with many features, however when I used most
 
 Notably MobX has a Reactions mechanism (the functions `autorun`, `reaction` and `when`) which seemed like a good idea but was actually worse than useEffect wrapped in custom hooks in any situation I found.
 
-I also found M×obX's support of subclassing rather useless. Complex inheritance hierarchies and global state do not play nicely together.
+I also found MobX's support of subclassing rather useless. Complex inheritance hierarchies and global state do not play nicely together.
 
 After playing with MobX I can recommend these 3 business logic strategies:
 
