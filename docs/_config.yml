@@ -21,7 +21,7 @@
 title: Ynon Perek's Blog
 email: ynon@ynonperek.com
 description: >- # this means to ignore newlines until "baseurl:"
-  Programming etc.
+  Playing with code
 baseurl: "/blog" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: jekyllrb
@@ -36,7 +36,7 @@ show_excerpts: true
 
 plainwhite:
   name: Ynon Perek's Blog
-  tagline: "Thoghts on Writing Better Code"
+  tagline: "Playing With Code"
   date_format: "%b %-d, %Y"
   dark_mode: true
   portfolio_image:  "assets/portfolio.jpg"
