@@ -16,3 +16,18 @@ pre.highlight, code {
 .posts > li:not(.posts-labelgroup) {
   margin-bottom: 40px;
 }
+
+.subscribe-form {
+  padding-left: 69px;
+  #mc_embed_signup form {
+    text-align: left;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .subscribe-form {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-left: 0;
+  }
+}

@@ -15,14 +15,14 @@
   <main class="container">
     <section class="about">
       <div class="about-header {{condensed_class}}">
-      <div class="about-title">
-      <h2 id="title">
-        <a href="{{ "/" | relative_url }}">{{ site.plainwhite.name }}</a>
-      </h2>
-      </div>
-      {%- if site.plainwhite.tagline -%}
-      <p class="tagline">{{ site.plainwhite.tagline }}</p>
-      {%- endif -%}
+        <div class="about-title">
+          <h2 id="title">
+            <a href="{{ "/" | relative_url }}">{{ site.plainwhite.name }}</a>
+          </h2>
+        </div>
+        {%- if site.plainwhite.tagline -%}
+        <p class="tagline">{{ site.plainwhite.tagline }}</p>
+        {%- endif -%}
       </div>
       {% capture footer %}
       {%- if site.plainwhite.social_links != '' -%}
@@ -141,11 +141,11 @@
       {%- if site.plainwhite.dark_mode -%}
       <div class="about-footer {{condensed_class}}">
         <p>Dark Mode
-          <i class="icon-moon"></i>
-          <label class="switch">
-            <input type="checkbox" class="dark-mode-toggle">
-            <span class="slider round" onclick="toggleDarkMode()"></span>
-          </label>
+        <i class="icon-moon"></i>
+        <label class="switch">
+          <input type="checkbox" class="dark-mode-toggle">
+          <span class="slider round" onclick="toggleDarkMode()"></span>
+        </label>
         </p>
       </div>
       {%- endif -%}
@@ -155,6 +155,9 @@
     <section class="content">
       {{ content }}
     </section>
+    <div class="subscribe-form">
+      {%- include subscribe.html -%}
+    </div>
     <footer class="{{condensed_class}}">
       {{ footer }}
     </footer>
