@@ -1,0 +1,19 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    MailchimpMarketing (3.0.40)
+      excon (~> 0.76.0)
+      json (~> 2.1, >= 2.1.0)
+    excon (0.76.0)
+    json (2.5.1)
+    redcarpet (3.5.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  MailchimpMarketing (= 3.0.40)
+  redcarpet (= 3.5.1)
+
+BUNDLED WITH
+   2.1.4
