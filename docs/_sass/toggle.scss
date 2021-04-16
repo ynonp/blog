@@ -5,7 +5,14 @@
     width: 30px;
     height: 17px;
   }
-  
+
+  .slider {
+    background-image: url(/assets/sun.png);
+    background-size: 13px;
+    background-position: 14px 2px;
+    background-repeat: no-repeat;
+  }
+
   .switch input { 
     opacity: 0;
     width: 0;
@@ -22,6 +29,7 @@
     background-color: #ccc;
     -webkit-transition: .4s;
     transition: .4s;
+    transition-property: left;
   }
   
   .slider:before {
@@ -37,7 +45,13 @@
   }
   
   input:checked + .slider {
-    background-color: #002b36 }
+    background-color: #535353;
+    padding: 2px;
+    background-image: url(/assets/moon.png);
+    background-size: 50%;
+    background-position: 2px;
+    background-repeat: no-repeat;
+  }
   
   input:focus + .slider {
     box-shadow: 0 0 1px #2196F3;
