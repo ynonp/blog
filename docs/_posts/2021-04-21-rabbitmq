@@ -1,0 +1,189 @@
+---
+title:  "Micro Service Communication with RabbitMQ"
+date:   2021-04-21 07:00:00 +0200
+categories: micro-services
+---
+
+Writing a Micro Services based system requires different tools than creating a monolith, one of which is the message queue. In today's experiment I took a quick tour of RabbitMQ and learned how to use it to pass messages between two services.
+
+## What We're Building
+In order to learn about RabbitMQ and message passing I decided to build a small system composed of 2 services: A Rails Application that manages appointments and people's informations; And a node micro-service that sends reminders to people when their appointment starts.
+
+Source code for the two applications is available here:
+[https://github.com/ynonp/microservices-rabbitmq-demo](https://github.com/ynonp/microservices-rabbitmq-demo).
+
+Let's start with the main parts of the Rails application. The architecture of the example is of a "main" application which manages the data and a helper service that should just do one specific job. This is not rare as many systems start as a monolith and with time will offload some functionality to external services.
+
+Our Rails app has 3 models: Meeting, ContactInfo and ContactInfoMeeting. A Meeting represents an appointment with multiple participants; a ContactInfo is the participant and ContactInfoMeeting is the connection table that binds ContactInfo to Meeting.
+
+The associations are coded with the following ruby code:
+
+```language-ruby
+# File: models/meeting.rb
+class Meeting < ApplicationRecord
+  has_many :contact_info_meetings
+  has_many :participants, class_name: :ContactInfo, through: :contact_info_meetings, source: :contact_info
+end
+
+
+# File: models/contact_info.rb
+class ContactInfo < ApplicationRecord
+  has_many :contact_info_meetings
+  has_many :meetings, through: :contact_info_meetings
+end
+
+
+# File: models/contact_info_meeting.rb
+class ContactInfoMeeting < ApplicationRecord
+  belongs_to :contact_info
+  belongs_to :meeting
+end
+```
+
+The reminders app uses Agenda node library to send the reminders. The moment a meeting starts it will contact the main Rails app, fetch the meeting data via a REST API and send an email to each participant. Since this is just a demo app I didn't actually write the code to send the email and used console.log instead. This is the job description using [agenda](https://github.com/agenda/agenda) job scheduler:
+
+```language-javascript
+agenda.define("send reminder", async (job) => {
+  try {
+    const { id } = job.attrs.data;
+    const res = await axios.get(`http://localhost:3000/meetings/${id}.json`);
+    console.log(`Sending emails to: `);
+  } catch (err) {
+    console.log('error');
+    console.log(err);
+  }
+});
+```
+
+The question is now - how can the reminders service schedule its reminders? how will it be notified of new or modified meetings?
+
+## How RabbitMQ Can Help
+And this is where RabbitMQ comes into play. A message queue is a software component that knows how to pass messages between other software components. In a microservice architecture, we'll use a message queue to pass asynchronous notifications between our services.
+
+We use asynchronous notifications when we don't need to answer right now to do our job. In our example, the main Rails app can modify a meeting's start time without waiting to hear what the reminders service has to say about that.
+
+An alternative, if we wanted to stay in Rails land, would be to create an active job via Delayed Job or resque. It is a request for a service to do something later. Even though for simple cases such as reminders using an active job feels like a simpler solution, as our system grows we'll discover that message queues provide more flexibility.
+
+A message queue can route a message to multiple services, so for example if we will also want to write a Micro Service to show a global calendar of all the meetings, we can just modify RabbitMQ settings to also notify the calendar service about new data.
+
+## RabbitMQ Related Code In Rails
+In the example app the I created a RabbitMQ server on localhost and connected with the guest user and without a password. The file `config/initializers/bunny.rb` was used to create the initial connection:
+
+```language-ruby
+require_relative '../../lib/messaging_service.rb';
+
+MESSAGING_SERVICE = MessagingService.new("amqp://localhost:5672")
+```
+
+It creates a global object called `MESSAGING_SERVICE` that is an instance of `MessagingService` class. The class is saved in the file `lib/messaging_service.rb` and has the following content:
+
+```language-ruby
+class MessagingService
+  def initialize(amqp_url)
+    @bunny = Bunny.new(amqp_url)
+  end
+
+  attr_reader :bunny
+
+  def meetings_queue
+    connect if @bunny.status == :not_connected
+
+    @channel ||= bunny.channel
+    @meetings_queue ||= @channel.queue('meetings')
+  end
+
+  def connect
+    @bunny.start
+  end
+end
+```
+
+To work with RabbitMQ from Rails I called `connect` method of [bunny](https://github.com/ruby-amqp/bunny), then created a `channel` and finally used `queue` method of the channel to create the queue.
+
+In the file `app/models/meeting.rb` I had the following code to send a message every time meeting information is updated:
+
+```language-ruby
+  after_save :create_reminder
+
+  def create_reminder
+    CreateMeetingReminderJob.perform_later(id)
+  end
+```
+
+And the actual sending is done via a job with this snippet:
+
+```language-ruby
+class CreateMeetingReminderJob < ApplicationJob
+  def perform(meeting_id)
+    meeting = Meeting.find(meeting_id)
+    MESSAGING_SERVICE.meetings_queue.publish(
+      { id: meeting.id, starts_at: meeting.starts_at }.to_json
+    )
+  end
+end
+```
+
+Calling `publish` hits RabbitMQ's default exchange, which will just send the message to the corresponding queue.
+
+Note the call to `to_json` on the message object: Passing messages via a message queue between different services requires I standardizr the messages. I used JSON as it's available everywhere and easily readable.
+
+## RabbitMQ Related Code In The Reminders Node.JS Service
+On the Node.JS side things are just as simple:
+
+```language-javascript
+amqp.connect('amqp://localhost', function(error0, connection) {
+  if (error0) {
+    throw error0;
+  }
+
+  connection.createChannel(function(error1, channel) {
+    if (error1) {
+      throw error1;
+    }
+    var queue = 'meetings';
+
+    console.log(" [*] Waiting for messages in %s. To exit press CTRL+C", queue);
+    channel.consume(queue, async function(msg) {
+      console.log(" [x] Received %s", msg.content.toString());
+      const data = JSON.parse(msg.content);
+      const numRemoved = await agenda.cancel({ data: { id: data.id }});
+      console.log(`canceled previous ${numRemoved} jobs`);
+      agenda.schedule(data.starts_at, "send reminder", {
+        id: data.id
+      });
+    }, { noAck: true })
+  })
+});
+```
+
+First call `connect`, then create a `channel` and finally call `consume` to be notified of each new message.
+
+Since messages can signal both CREATE and UPDATE, I made sure to remove old reminders before creating new agenda jobs (lines 36-41).
+
+## Open Bugs and Next Tasks
+1. In order to run the code you will need to start a local mongo DB and a local RabbitMQ, in addition to starting the Rails and Node app. In the real world we probably would create a docker-compose.yml for the entire system.
+
+2. The code above does not handle DELETE events.
+
+3. If you want to take this experiment a step further, it would be interesting to add a Calendar micro service and modify the publishing code to use a `fanout` exchange. A fanout exchange in RabbitMQ spreads its messages to multiple queues, and there's a good tutorial showing how to create one here: [http://rubybunny.info/articles/exchanges.html](http://rubybunny.info/articles/exchanges.html).
+
+## Problems I Encountered While Coding This Experiment
+Passing messages between services with RabbitMQ does not seem difficult and most of the code is indeed short, however I did stumble on several difficulties while writing it:
+
+1. A Rails app by default uses UTC timezone, and Node.JS takes the timezone from the operating system. This caused the two services to use different time zones and caused me to spend too much time debugging to find why my notifications were not being sent.
+
+2. For a reason I'm still not sure of, calling `connect` from the initializer created a stale connection that I couldn't use (it just hang there). Only after I moved connect to a later phase did things start to work.
+
+## fin
+Other than this game for the blog, I also use RabbitMQ in several other systems for some freelance jobs I did, and am impressed by its stability. Tracing and fixing many bugs in those systems, nont of which was ever related to RabbitMQ.
+
+RabbitMQ is also very easy to set-up and use all in all.
+
+The two biggest problems I had with RabbitMQ were:
+
+1. When changing hostname, the entire installation goes crazy. There's a [StackOverflow question](https://stackoverflow.com/questions/14659335/rabbitmq-server-fails-to-start-after-hostname-has-changed-for-first-time) on this and if you do need to change host names you'll want to follow the instructions there and hope for the best.
+
+2. Debugging was somewhat difficult as by default there's no easy way to see all the messages in the queue or to "push back" consumed messages. On a real world system I used a fanout exchange that sent the messages to a "debug" queue, and used a log micro service to log everything that went through this exchange.
+
+It's worth pointing out that there's a popular alternative to RabbitMQ called Kafka. It does some things similarly and others differently, and I certainly advise you to check both options before making a choice. There's a good article on each message queue's specific use cases at [https://www.cloudamqp.com/blog/when-to-use-rabbitmq-or-apache-kafka.html](https://www.cloudamqp.com/blog/when-to-use-rabbitmq-or-apache-kafka.html).
+
