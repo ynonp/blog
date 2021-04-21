@@ -18,7 +18,7 @@ Our Rails app has 3 models: Meeting, ContactInfo and ContactInfoMeeting. A Meeti
 
 The associations are coded with the following ruby code:
 
-```language-ruby
+```
 # File: models/meeting.rb
 class Meeting < ApplicationRecord
   has_many :contact_info_meetings
@@ -42,7 +42,7 @@ end
 
 The reminders app uses Agenda node library to send the reminders. The moment a meeting starts it will contact the main Rails app, fetch the meeting data via a REST API and send an email to each participant. Since this is just a demo app I didn't actually write the code to send the email and used console.log instead. This is the job description using [agenda](https://github.com/agenda/agenda) job scheduler:
 
-```language-javascript
+```
 agenda.define("send reminder", async (job) => {
   try {
     const { id } = job.attrs.data;
@@ -69,7 +69,7 @@ A message queue can route a message to multiple services, so for example if we w
 ## RabbitMQ Related Code In Rails
 In the example app the I created a RabbitMQ server on localhost and connected with the guest user and without a password. The file `config/initializers/bunny.rb` was used to create the initial connection:
 
-```language-ruby
+```
 require_relative '../../lib/messaging_service.rb';
 
 MESSAGING_SERVICE = MessagingService.new("amqp://localhost:5672")
@@ -77,7 +77,7 @@ MESSAGING_SERVICE = MessagingService.new("amqp://localhost:5672")
 
 It creates a global object called `MESSAGING_SERVICE` that is an instance of `MessagingService` class. The class is saved in the file `lib/messaging_service.rb` and has the following content:
 
-```language-ruby
+```
 class MessagingService
   def initialize(amqp_url)
     @bunny = Bunny.new(amqp_url)
@@ -102,7 +102,7 @@ To work with RabbitMQ from Rails I called `connect` method of [bunny](https://gi
 
 In the file `app/models/meeting.rb` I had the following code to send a message every time meeting information is updated:
 
-```language-ruby
+```
   after_save :create_reminder
 
   def create_reminder
@@ -112,7 +112,7 @@ In the file `app/models/meeting.rb` I had the following code to send a message e
 
 And the actual sending is done via a job with this snippet:
 
-```language-ruby
+```
 class CreateMeetingReminderJob < ApplicationJob
   def perform(meeting_id)
     meeting = Meeting.find(meeting_id)
@@ -130,7 +130,7 @@ Note the call to `to_json` on the message object: Passing messages via a message
 ## RabbitMQ Related Code In The Reminders Node.JS Service
 On the Node.JS side things are just as simple:
 
-```language-javascript
+```
 amqp.connect('amqp://localhost', function(error0, connection) {
   if (error0) {
     throw error0;
